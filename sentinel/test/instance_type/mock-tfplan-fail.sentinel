@@ -1,0 +1,15 @@
+resource_changes = {
+	"aws_instance.app": {
+		"address": "aws_instance.app",
+		"mode":    "managed",
+		"type":    "aws_instance",
+		"name":    "app",
+		"change": {
+			"actions": ["create"],
+			"before":  null,
+			"after": {
+				"instance_type": "m5.large",
+			},
+		},
+	},
+}
