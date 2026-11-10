@@ -1,0 +1,34 @@
+resource_changes = {
+	"aws_instance.app": {
+		"address": "aws_instance.app",
+		"mode":    "managed",
+		"type":    "aws_instance",
+		"name":    "app",
+		"change": {
+			"actions": ["create"],
+			"before":  null,
+			"after": {
+				"root_block_device": [
+					{
+						"encrypted":   true,
+						"volume_size": 8,
+					},
+				],
+			},
+		},
+	},
+	"aws_ebs_volume.data": {
+		"address": "aws_ebs_volume.data",
+		"mode":    "managed",
+		"type":    "aws_ebs_volume",
+		"name":    "data",
+		"change": {
+			"actions": ["create"],
+			"before":  null,
+			"after": {
+				"encrypted": true,
+				"size":      10,
+			},
+		},
+	},
+}

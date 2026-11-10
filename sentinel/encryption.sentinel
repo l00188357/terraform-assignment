@@ -1,0 +1,37 @@
+import "tfplan/v2" as tfplan
+
+# Standalone EBS volumes being created or updated
+ebs_volumes = filter tfplan.resource_changes as _, rc {
+	rc.type is "aws_ebs_volume" and
+	rc.mode is "managed" and
+	rc.change.actions is not ["delete"]
+}
+
+# EC2 instances being created or updated
+ec2_instances = filter tfplan.resource_changes as _, rc {
+	rc.type is "aws_instance" and
+	rc.mode is "managed" and
+	rc.change.actions is not ["delete"]
+}
+
+# Rule 1: every standalone EBS volume must be encrypted
+ebs_volumes_encrypted = rule {
+	all ebs_volumes as _, rc {
+		rc.change.after.encrypted is true
+	}
+}
+
+# Rule 2: every EC2 root disk must be declared and encrypted
+root_volumes_encrypted = rule {
+	all ec2_instances as _, rc {
+		length(rc.change.after.root_block_device else []) > 0 and
+		all rc.change.after.root_block_device as disk {
+			disk.encrypted is true
+		}
+	}
+}
+
+main = rule {
+	ebs_volumes_encrypted and
+	root_volumes_encrypted
+}
