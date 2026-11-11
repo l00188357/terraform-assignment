@@ -22,3 +22,13 @@ policy "sovereignty" {
   source            = "./sovereignty.sentinel"
   enforcement_level = "hard-mandatory"
 }
+
+policy "supply_chain_providers" {
+  source            = "./supply_chain_providers.sentinel"
+  enforcement_level = "hard-mandatory"
+}
+
+policy "supply_chain_modules" {
+  source            = "./supply_chain_modules.sentinel"
+  enforcement_level = "hard-mandatory"
+}
