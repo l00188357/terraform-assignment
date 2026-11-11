@@ -12,3 +12,8 @@ policy "metadata" {
   source            = "./metadata.sentinel"
   enforcement_level = "hard-mandatory"
 }
+
+policy "network" {
+  source            = "./network.sentinel"
+  enforcement_level = "hard-mandatory"
+}
