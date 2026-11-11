@@ -7,3 +7,8 @@ policy "encryption" {
   source            = "./encryption.sentinel"
   enforcement_level = "hard-mandatory"
 }
+
+policy "metadata" {
+  source            = "./metadata.sentinel"
+  enforcement_level = "hard-mandatory"
+}

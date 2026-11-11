@@ -1,0 +1,24 @@
+import "tfplan/v2" as tfplan
+
+# EC2 instances being created or updated
+ec2_instances = filter tfplan.resource_changes as _, rc {
+	rc.type is "aws_instance" and
+	rc.mode is "managed" and
+	rc.change.actions is not ["delete"]
+}
+
+# IMDSv2 mandatory: metadata_options must be declared and http_tokens must be "required"
+imdsv2_required = rule {
+	all ec2_instances as _, rc {
+		# Ensure the block exists and has at least one item
+		length(rc.change.after.metadata_options else []) > 0 and
+		# Iterate through the block(s) and ensure http_tokens is strictly "required"
+		all rc.change.after.metadata_options as opts {
+			opts.http_tokens is "required"
+		}
+	}
+}
+
+main = rule {
+	imdsv2_required
+}
