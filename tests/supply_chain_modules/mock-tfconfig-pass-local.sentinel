@@ -1,9 +1,0 @@
-﻿module_calls = {
-    "network": {
-        "name":               "network",
-        "source":             "./modules/network",
-        "version_constraint": "",
-        "module_address":     "",
-        "config":             {},
-    },
-}
