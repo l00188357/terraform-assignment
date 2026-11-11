@@ -1,0 +1,82 @@
+import "tfplan/v2" as tfplan
+import "strings"
+
+# Approved regions (Ireland)
+approved_regions = ["eu-west-1"]
+
+# Global services have no region and are ignored
+global_types = [
+	"aws_iam_role",
+	"aws_iam_policy",
+	"aws_iam_user",
+	"aws_route53_zone",
+	"aws_cloudfront_distribution",
+]
+
+managed_resources = filter (tfplan.resource_changes else {}) as _, rc {
+	rc.mode is "managed" and
+	rc.change.actions is not ["delete"] and
+	rc.type not in global_types
+}
+
+provider_configs = tfplan.raw.configuration.provider_config else {}
+
+aws_providers = filter provider_configs as _, cfg {
+	cfg.name is "aws"
+}
+
+# "eu-west-1a" is approved if it starts with an approved region
+az_approved = func(az) {
+	return any approved_regions as r {
+		strings.has_prefix(az, r)
+	}
+}
+
+# Resolve the provider region; return null if it cannot be proven
+resolve_region = func(cfg) {
+	expr = (cfg.expressions else {}).region else null
+	if expr is null {
+		return null
+	}
+	if "constant_value" in keys(expr) {
+		return expr.constant_value
+	}
+	refs = (expr.references else [])
+	for refs as ref {
+		if strings.has_prefix(ref, "var.") {
+			name = strings.trim_prefix(ref, "var.")
+			return tfplan.variables[name].value else null
+		}
+	}
+	return null
+}
+
+# Rule 1 (fail closed): at least one aws provider, all with a provable approved region
+provider_regions_approved = rule {
+	length(aws_providers) > 0 and
+	all aws_providers as _, cfg {
+		resolve_region(cfg) in approved_regions
+	}
+}
+
+# Rule 2: explicit availability zones are in approved regions
+azs_approved = rule {
+	all managed_resources as _, rc {
+		(rc.change.after.availability_zone else null) is null or
+		az_approved(rc.change.after.availability_zone)
+	}
+}
+
+# Rule 3: explicit region attributes are approved
+explicit_regions_approved = rule {
+	all managed_resources as _, rc {
+		(rc.change.after.region else null) is null or
+		rc.change.after.region in approved_regions
+	}
+}
+
+main = rule {
+	provider_regions_approved and
+	azs_approved and
+	explicit_regions_approved
+}
