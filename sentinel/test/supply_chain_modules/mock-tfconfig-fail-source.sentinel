@@ -1,0 +1,9 @@
+﻿module_calls = {
+    "network": {
+        "name":               "network",
+        "source":             "git::https://github.com/random-user/vpc.git",
+        "version_constraint": "",
+        "module_address":     "",
+        "config":             {},
+    },
+}

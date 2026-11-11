@@ -1,0 +1,44 @@
+import "tfconfig/v2" as tfconfig
+import "strings"
+
+# Trusted module sources: a verified registry namespace, or local modules in this repo
+approved_prefixes = ["terraform-aws-modules/", "./"]
+
+version_pattern = "^(= ?)?[0-9]+[.][0-9]+[.][0-9]+$"
+
+is_local = func(m) {
+	return strings.has_prefix(m.source, "./")
+}
+
+source_approved = func(m) {
+	for approved_prefixes as prefix {
+		if strings.has_prefix(m.source, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+# Local modules live in the repo and are reviewed with it, so no version is required
+version_ok = func(m) {
+	return is_local(m) or (m.version_constraint else "") matches version_pattern
+}
+
+# Rule 1: every module comes from a trusted source
+modules_from_trusted_sources = rule {
+	all tfconfig.module_calls as _, m {
+		source_approved(m)
+	}
+}
+
+# Rule 2: every registry module has an exact pinned version
+modules_pinned = rule {
+	all tfconfig.module_calls as _, m {
+		version_ok(m)
+	}
+}
+
+main = rule {
+	modules_from_trusted_sources and
+	modules_pinned
+}

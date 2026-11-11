@@ -1,0 +1,9 @@
+﻿module_calls = {
+    "network": {
+        "name":               "network",
+        "source":             "terraform-aws-modules/vpc/aws",
+        "version_constraint": "~> 5.0",
+        "module_address":     "",
+        "config":             {},
+    },
+}
