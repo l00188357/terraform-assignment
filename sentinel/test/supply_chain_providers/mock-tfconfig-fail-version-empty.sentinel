@@ -1,0 +1,10 @@
+﻿providers = {
+    "aws": {
+        "name":               "aws",
+        "alias":              "",
+        "full_name":          "registry.terraform.io/hashicorp/aws",
+        "version_constraint": "",
+        "module_address":     "",
+        "config":             {},
+    },
+}

@@ -1,0 +1,34 @@
+import "tfconfig/v2" as tfconfig
+
+# Approved provider sources (registry address)
+approved_sources = ["registry.terraform.io/hashicorp/aws"]
+
+# Exact version only: "5.82.2" or "= 5.82.2". Rejects ~>, >=, ranges and empty values.
+version_pattern = "^(= ?)?[0-9]+[.][0-9]+[.][0-9]+$"
+
+source_approved = func(p) {
+	return (p.full_name else "") in approved_sources
+}
+
+version_pinned = func(p) {
+	return (p.version_constraint else "") matches version_pattern
+}
+
+# Rule 1: every provider comes from an approved source
+providers_from_approved_sources = rule {
+	all tfconfig.providers as _, p {
+		source_approved(p)
+	}
+}
+
+# Rule 2: every provider has an exact pinned version (fail closed if missing)
+providers_pinned = rule {
+	all tfconfig.providers as _, p {
+		version_pinned(p)
+	}
+}
+
+main = rule {
+	providers_from_approved_sources and
+	providers_pinned
+}
