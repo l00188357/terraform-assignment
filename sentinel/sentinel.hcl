@@ -17,3 +17,8 @@ policy "network" {
   source            = "./network.sentinel"
   enforcement_level = "hard-mandatory"
 }
+
+policy "sovereignty" {
+  source            = "./sovereignty.sentinel"
+  enforcement_level = "hard-mandatory"
+}
