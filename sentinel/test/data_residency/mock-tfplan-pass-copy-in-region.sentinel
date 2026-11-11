@@ -1,0 +1,30 @@
+﻿resource_changes = {
+    "aws_ebs_volume.data": {
+        "address": "aws_ebs_volume.data",
+        "mode":    "managed",
+        "type":    "aws_ebs_volume",
+        "name":    "data",
+        "change": {
+            "actions": ["create"],
+            "before":  null,
+            "after": {
+                "encrypted": true,
+                "tags_all":  { "DataClass": "sensitive" },
+            },
+        },
+    },
+    "aws_ebs_snapshot_copy.backup": {
+        "address": "aws_ebs_snapshot_copy.backup",
+        "mode":    "managed",
+        "type":    "aws_ebs_snapshot_copy",
+        "name":    "backup",
+        "change": {
+            "actions": ["create"],
+            "before":  null,
+            "after": {
+                "source_region":      "eu-west-1",
+                "destination_region": "eu-west-1",
+            },
+        },
+    },
+}

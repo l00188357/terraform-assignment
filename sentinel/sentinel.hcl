@@ -32,3 +32,8 @@ policy "supply_chain_modules" {
   source            = "./supply_chain_modules.sentinel"
   enforcement_level = "hard-mandatory"
 }
+
+policy "data_residency" {
+  source            = "./data_residency.sentinel"
+  enforcement_level = "hard-mandatory"
+}

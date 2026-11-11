@@ -1,0 +1,16 @@
+﻿resource_changes = {
+    "aws_ebs_volume.data": {
+        "address": "aws_ebs_volume.data",
+        "mode":    "managed",
+        "type":    "aws_ebs_volume",
+        "name":    "data",
+        "change": {
+            "actions": ["create"],
+            "before":  null,
+            "after": {
+                "encrypted": false,
+                "tags_all":  { "Name": "scratch" },
+            },
+        },
+    },
+}

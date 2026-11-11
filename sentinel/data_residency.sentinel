@@ -1,0 +1,45 @@
+import "tfplan/v2" as tfplan
+import "strings"
+
+approved_regions = ["eu-west-1"]
+
+managed_resources = filter tfplan.resource_changes as _, rc {
+	rc.mode is "managed" and
+	rc.change.actions is not ["delete"]
+}
+
+# Resources tagged DataClass = sensitive (tags_all includes provider default tags)
+sensitive_resources = filter managed_resources as _, rc {
+	(rc.change.after.tags_all else {})["DataClass"] else "" is "sensitive"
+}
+
+# Resources that copy data to another region
+# (the destination or source region is written in the resource)
+copy_resources = filter managed_resources as _, rc {
+	rc.type in ["aws_ebs_snapshot_copy", "aws_ami_copy"]
+}
+
+# Encryption flag differs by type: most use "encrypted"
+is_encrypted = func(rc) {
+	return (rc.change.after.encrypted else false) is true
+}
+
+# Rule 1: sensitive data must be encrypted
+sensitive_encrypted = rule {
+	all sensitive_resources as _, rc {
+		is_encrypted(rc)
+	}
+}
+
+# Rule 2: copies must stay in approved regions (source and destination)
+copies_in_approved_regions = rule {
+	all copy_resources as _, rc {
+		(rc.change.after.source_region else "") in approved_regions and
+		(rc.change.after.destination_region else rc.change.after.source_region else "") in approved_regions
+	}
+}
+
+main = rule {
+	sensitive_encrypted and
+	copies_in_approved_regions
+}
