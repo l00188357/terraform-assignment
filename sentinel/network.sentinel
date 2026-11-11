@@ -1,0 +1,71 @@
+import "tfplan/v2" as tfplan
+
+# Security groups being created or updated (inline ingress rules live inside them)
+security_groups = filter tfplan.resource_changes as _, rc {
+	rc.type is "aws_security_group" and
+	rc.mode is "managed" and
+	rc.change.actions is not ["delete"]
+}
+
+# Standalone rules being created or updated
+standalone_rules = filter tfplan.resource_changes as _, rc {
+	rc.type is "aws_security_group_rule" and
+	rc.mode is "managed" and
+	rc.change.actions is not ["delete"]
+}
+
+# Does the CIDR list contain a world-open range?
+is_open = func(cidrs) {
+	return "0.0.0.0/0" in cidrs or "::/0" in cidrs
+}
+
+# Does this protocol and port range expose SSH (port 22)?
+exposes_ssh = func(protocol, from_port, to_port) {
+	if protocol is "-1" {
+		return true
+	}
+	if protocol in ["tcp", "6"] {
+		return from_port <= 22 and to_port >= 22
+	}
+	return false
+}
+
+# Is this single ingress rule dangerous? (open to the world AND reaches port 22)
+is_dangerous = func(cidr_blocks, ipv6_cidr_blocks, protocol, from_port, to_port) {
+	world_open = is_open(cidr_blocks) or is_open(ipv6_cidr_blocks)
+	return world_open and exposes_ssh(protocol, from_port, to_port)
+}
+
+# Rule 1: no inline ingress rule opens SSH to the world
+sg_ingress_safe = rule {
+	all security_groups as _, rc {
+		all rc.change.after.ingress as ing {
+			not is_dangerous(
+				ing.cidr_blocks,
+				ing.ipv6_cidr_blocks,
+				ing.protocol,
+				ing.from_port,
+				ing.to_port,
+			)
+		}
+	}
+}
+
+# Rule 2: no standalone ingress rule opens SSH to the world
+standalone_ingress_safe = rule {
+	all standalone_rules as _, rc {
+		rc.change.after.type is not "ingress" or
+		not is_dangerous(
+			rc.change.after.cidr_blocks,
+			rc.change.after.ipv6_cidr_blocks,
+			rc.change.after.protocol,
+			rc.change.after.from_port,
+			rc.change.after.to_port,
+		)
+	}
+}
+
+main = rule {
+	sg_ingress_safe and
+	standalone_ingress_safe
+}
