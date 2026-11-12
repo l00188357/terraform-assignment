@@ -1,0 +1,84 @@
+import "tfconfig/v2" as tfconfig
+import "strings"
+
+# Approved provider sources (registry address)
+approved_sources = ["registry.terraform.io/hashicorp/aws"]
+
+# Trusted module sources: a verified registry namespace, or local modules in this repo
+approved_prefixes = ["terraform-aws-modules/", "./"]
+
+# Exact version only: "5.82.2" or "= 5.82.2". Rejects ~>, >=, ranges and empty values.
+version_pattern = "^(= ?)?[0-9]+[.][0-9]+[.][0-9]+$"
+
+# ---------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------
+
+provider_source_approved = func(p) {
+	return (p.full_name else "") in approved_sources
+}
+
+provider_version_pinned = func(p) {
+	return (p.version_constraint else "") matches version_pattern
+}
+
+is_local = func(m) {
+	return strings.has_prefix(m.source, "./")
+}
+
+module_source_approved = func(m) {
+	for approved_prefixes as prefix {
+		if strings.has_prefix(m.source, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+# Local modules live in the repo and are reviewed with it, so no version is required
+module_version_ok = func(m) {
+	return is_local(m) or (m.version_constraint else "") matches version_pattern
+}
+
+# ---------------------------------------------------------------
+# Provider rules
+# ---------------------------------------------------------------
+
+providers_from_approved_sources = rule {
+	all tfconfig.providers as _, p {
+		provider_source_approved(p)
+	}
+}
+
+providers_pinned = rule {
+	all tfconfig.providers as _, p {
+		provider_version_pinned(p)
+	}
+}
+
+# ---------------------------------------------------------------
+# Module rules
+# ---------------------------------------------------------------
+
+modules_from_trusted_sources = rule {
+	all tfconfig.module_calls as _, m {
+		module_source_approved(m)
+	}
+}
+
+modules_pinned = rule {
+	all tfconfig.module_calls as _, m {
+		module_version_ok(m)
+	}
+}
+
+# ---------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------
+
+main = rule {
+	providers_from_approved_sources and
+	providers_pinned and
+	modules_from_trusted_sources and
+	modules_pinned
+}

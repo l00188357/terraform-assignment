@@ -1,0 +1,148 @@
+import "tfplan/v2" as tfplan
+
+# ---------------------------------------------------------------
+# Shared filters
+# ---------------------------------------------------------------
+
+# EC2 instances being created or updated (ignore destroyed ones)
+ec2_instances = filter tfplan.resource_changes as _, rc {
+	rc.type is "aws_instance" and
+		rc.mode is "managed" and
+		rc.change.actions is not ["delete"]
+}
+
+# Standalone EBS volumes being created or updated
+ebs_volumes = filter tfplan.resource_changes as _, rc {
+	rc.type is "aws_ebs_volume" and
+		rc.mode is "managed" and
+		rc.change.actions is not ["delete"]
+}
+
+# Security groups being created or updated (inline ingress rules live inside them)
+security_groups = filter tfplan.resource_changes as _, rc {
+	rc.type is "aws_security_group" and
+		rc.mode is "managed" and
+		rc.change.actions is not ["delete"]
+}
+
+# Standalone security group rules being created or updated
+standalone_rules = filter tfplan.resource_changes as _, rc {
+	rc.type is "aws_security_group_rule" and
+		rc.mode is "managed" and
+		rc.change.actions is not ["delete"]
+}
+
+# ---------------------------------------------------------------
+# 1. Approved EC2 instance types
+# ---------------------------------------------------------------
+
+allowed_types = ["t3.micro", "t3.small"]
+
+instance_type_allowed = rule {
+	all ec2_instances as _, rc {
+		rc.change.after.instance_type in allowed_types
+	}
+}
+
+# ---------------------------------------------------------------
+# 2. Encrypted EBS storage (data volumes and EC2 root disks)
+# ---------------------------------------------------------------
+
+# Rule: every standalone EBS volume must be encrypted
+ebs_volumes_encrypted = rule {
+	all ebs_volumes as _, rc {
+		rc.change.after.encrypted is true
+	}
+}
+
+# Rule: every EC2 root disk must be declared and encrypted
+root_volumes_encrypted = rule {
+	all ec2_instances as _, rc {
+		length(rc.change.after.root_block_device else []) > 0 and
+			all rc.change.after.root_block_device as disk {
+				disk.encrypted is true
+			}
+	}
+}
+
+# ---------------------------------------------------------------
+# 3. IMDSv2 mandatory
+# ---------------------------------------------------------------
+
+# metadata_options must be declared and http_tokens must be "required"
+imdsv2_required = rule {
+	all ec2_instances as _, rc {
+		length(rc.change.after.metadata_options else []) > 0 and
+			all rc.change.after.metadata_options as opts {
+				opts.http_tokens is "required"
+			}
+	}
+}
+
+# ---------------------------------------------------------------
+# 4. Network security: no SSH exposed to the world
+# ---------------------------------------------------------------
+
+# Does the CIDR list contain a world-open range?
+is_open = func(cidrs) {
+	return "0.0.0.0/0" in cidrs or "::/0" in cidrs
+}
+
+# Does this protocol and port range expose SSH (port 22)?
+exposes_ssh = func(protocol, from_port, to_port) {
+	if protocol is "-1" {
+		return true
+	}
+	if protocol in ["tcp", "6"] {
+		return from_port <= 22 and to_port >= 22
+	}
+	return false
+}
+
+# Is this single ingress rule dangerous? (open to the world AND reaches port 22)
+is_dangerous = func(cidr_blocks, ipv6_cidr_blocks, protocol, from_port, to_port) {
+	world_open = is_open(cidr_blocks) or is_open(ipv6_cidr_blocks)
+	return world_open and exposes_ssh(protocol, from_port, to_port)
+}
+
+# Rule: no inline ingress rule opens SSH to the world
+sg_ingress_safe = rule {
+	all security_groups as _, rc {
+		all rc.change.after.ingress as ing {
+			not is_dangerous(
+				ing.cidr_blocks,
+				ing.ipv6_cidr_blocks,
+				ing.protocol,
+				ing.from_port,
+				ing.to_port,
+			)
+		}
+	}
+}
+
+# Rule: no standalone ingress rule opens SSH to the world
+standalone_ingress_safe = rule {
+	all standalone_rules as _, rc {
+		rc.change.after.type is not "ingress" or
+			not is_dangerous(
+				rc.change.after.cidr_blocks,
+				rc.change.after.ipv6_cidr_blocks,
+				rc.change.after.protocol,
+				rc.change.after.from_port,
+				rc.change.after.to_port,
+			)
+	}
+}
+
+# ---------------------------------------------------------------
+# Main: all infrastructure rules must hold
+# ---------------------------------------------------------------
+
+main = rule {
+	instance_type_allowed and
+	ebs_volumes_encrypted and
+	root_volumes_encrypted and
+	imdsv2_required and
+	sg_ingress_safe and
+	standalone_ingress_safe
+}
