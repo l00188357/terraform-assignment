@@ -1,0 +1,65 @@
+================ Results for policy set: <empty policy set name> ===============
+
+Sentinel Result: false
+
+This result means that one or more Sentinel policies failed. More than likely,
+this was due to the discovery of violations by the main rule and other
+sub-rules. Please see the details of the policies executed below to find the
+violation(s), which is usually indicated by a rule with a false boolean value,
+or non-zero collection data.
+
+3 policies evaluated.
+
+## Policy 1: infrastructure_security (hard-mandatory)
+
+Result: false
+
+./infrastructure_security.sentinel:141:1 - Rule "main"
+  Value:
+    false
+
+./infrastructure_security.sentinel:41:1 - Rule "instance_type_allowed"
+  Value:
+    false
+
+## Policy 2: digital_sovereignty (advisory)
+
+Result: false
+
+./digital_sovereignty.sentinel:128:1 - Rule "main"
+  Value:
+    false
+
+./digital_sovereignty.sentinel:82:1 - Rule "provider_regions_approved"
+  Description:
+    Fail closed: at least one aws provider, all with a provable
+    approved region
+
+  Value:
+    false
+
+## Policy 3: supply_chain (advisory)
+
+Result: true
+
+./supply_chain.sentinel:79:1 - Rule "main"
+  Value:
+    true
+
+./supply_chain.sentinel:63:1 - Rule "modules_from_trusted_sources"
+  Value:
+    true
+
+./supply_chain.sentinel:69:1 - Rule "modules_pinned"
+  Value:
+    true
+
+./supply_chain.sentinel:47:1 - Rule "providers_from_approved_sources"
+  Value:
+    true
+
+./supply_chain.sentinel:53:1 - Rule "providers_pinned"
+  Value:
+    true
+
+
