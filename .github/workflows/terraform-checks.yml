@@ -1,0 +1,84 @@
+name: Terraform and Sentinel checks
+
+# Static checks only. No plan, no apply, no cloud credentials.
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - "sentinel/**"
+      - ".github/workflows/terraform-checks.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - "sentinel/**"
+      - ".github/workflows/terraform-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TERRAFORM_VERSION: "1.17.2"
+  SENTINEL_VERSION: "0.41.0"
+
+jobs:
+  terraform:
+    name: Terraform fmt, init and validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      # -lockfile=readonly makes init fail if the provider does not match
+      # the hashes recorded in .terraform.lock.hcl (provider integrity).
+      - name: Init (no backend, lock file read-only)
+        run: terraform init -backend=false -lockfile=readonly
+
+      - name: Validate
+        run: terraform validate
+
+  sentinel:
+    name: Sentinel unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sentinel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The archive is checked against the SHA256SUMS file published next to it.
+      # This detects a corrupted download, but it does not verify the GPG
+      # signature of the checksum file.
+      - name: Install Sentinel CLI
+        working-directory: ${{ runner.temp }}
+        run: |
+          base="https://releases.hashicorp.com/sentinel/${SENTINEL_VERSION}"
+          zip="sentinel_${SENTINEL_VERSION}_linux_amd64.zip"
+          curl -fsSLO "${base}/${zip}"
+          curl -fsSLO "${base}/sentinel_${SENTINEL_VERSION}_SHA256SUMS"
+          grep " ${zip}\$" "sentinel_${SENTINEL_VERSION}_SHA256SUMS" | sha256sum -c -
+          unzip -o "${zip}" -d "${RUNNER_TEMP}/sentinel-bin"
+          echo "${RUNNER_TEMP}/sentinel-bin" >> "$GITHUB_PATH"
+
+      - name: Sentinel version
+        run: sentinel version
+
+      # Runs every policy in sentinel/ with its cases in sentinel/test/<policy>/.
+      # A failing case makes the job fail.
+      - name: Run Sentinel tests
+        run: sentinel test
